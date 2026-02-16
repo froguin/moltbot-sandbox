@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "moltbot-sandbox",
+  "name": "moltbot",
+  "account_id": "38e65f79cdcaa062a73dfda669b8bb7d",
   "main": "src/index.ts",
   "compatibility_date": "2025-05-06",
   "compatibility_flags": ["nodejs_compat"],
@@ -37,7 +38,7 @@
     {
       "class_name": "Sandbox",
       "image": "./Dockerfile",
-      "instance_type": "standard-1",
+      "instance_type": "standard-1",  // 4 GiB memory, 8 GB disk
       "max_instances": 1,
     },
   ],
@@ -64,7 +65,7 @@
   ],
   // Cron trigger to sync moltbot data to R2 every 5 minutes
   "triggers": {
-    "crons": ["*/5 * * * *"],
+    "crons": ["*/30 * * * *"],
   },
   // Browser Rendering binding for CDP shim
   "browser": {

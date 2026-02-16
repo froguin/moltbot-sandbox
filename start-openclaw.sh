@@ -62,7 +62,8 @@ should_restore_from_r2() {
 if [ -f "$BACKUP_DIR/openclaw/openclaw.json" ]; then
     if should_restore_from_r2; then
         echo "Restoring from R2 backup at $BACKUP_DIR/openclaw..."
-        cp -a "$BACKUP_DIR/openclaw/." "$CONFIG_DIR/"
+        # Avoid .last-sync type conflicts (file vs directory) during recursive copy.
+        rsync -a --exclude='.last-sync' "$BACKUP_DIR/openclaw/" "$CONFIG_DIR/"
         cp -f "$BACKUP_DIR/.last-sync" "$CONFIG_DIR/.last-sync" 2>/dev/null || true
         echo "Restored config from R2 backup"
     fi
@@ -70,7 +71,7 @@ elif [ -f "$BACKUP_DIR/clawdbot/clawdbot.json" ]; then
     # Legacy backup format — migrate .clawdbot data into .openclaw
     if should_restore_from_r2; then
         echo "Restoring from legacy R2 backup at $BACKUP_DIR/clawdbot..."
-        cp -a "$BACKUP_DIR/clawdbot/." "$CONFIG_DIR/"
+        rsync -a --exclude='.last-sync' "$BACKUP_DIR/clawdbot/" "$CONFIG_DIR/"
         cp -f "$BACKUP_DIR/.last-sync" "$CONFIG_DIR/.last-sync" 2>/dev/null || true
         # Rename the config file if it has the old name
         if [ -f "$CONFIG_DIR/clawdbot.json" ] && [ ! -f "$CONFIG_FILE" ]; then
@@ -82,7 +83,7 @@ elif [ -f "$BACKUP_DIR/clawdbot.json" ]; then
     # Very old legacy backup format (flat structure)
     if should_restore_from_r2; then
         echo "Restoring from flat legacy R2 backup at $BACKUP_DIR..."
-        cp -a "$BACKUP_DIR/." "$CONFIG_DIR/"
+        rsync -a --exclude='.last-sync' "$BACKUP_DIR/" "$CONFIG_DIR/"
         cp -f "$BACKUP_DIR/.last-sync" "$CONFIG_DIR/.last-sync" 2>/dev/null || true
         if [ -f "$CONFIG_DIR/clawdbot.json" ] && [ ! -f "$CONFIG_FILE" ]; then
             mv "$CONFIG_DIR/clawdbot.json" "$CONFIG_FILE"
@@ -125,11 +126,21 @@ if [ ! -f "$CONFIG_FILE" ]; then
     echo "No existing config found, running openclaw onboard..."
 
     AUTH_ARGS=""
-    if [ -n "$CLOUDFLARE_AI_GATEWAY_API_KEY" ] && [ -n "$CF_AI_GATEWAY_ACCOUNT_ID" ] && [ -n "$CF_AI_GATEWAY_GATEWAY_ID" ]; then
+    # Support both new and legacy AI Gateway variable names
+    GATEWAY_API_KEY="${CLOUDFLARE_AI_GATEWAY_API_KEY:-$AI_GATEWAY_API_KEY}"
+    # Skip placeholder values and fall back to ANTHROPIC_API_KEY
+    if [ "$GATEWAY_API_KEY" = "dummy" ] || [ "$GATEWAY_API_KEY" = "dummy-key" ]; then
+        echo "Warning: CLOUDFLARE_AI_GATEWAY_API_KEY is a placeholder ('$GATEWAY_API_KEY'), falling back to ANTHROPIC_API_KEY"
+        GATEWAY_API_KEY="${ANTHROPIC_API_KEY:-$GATEWAY_API_KEY}"
+    fi
+    GATEWAY_ACCOUNT_ID="${CF_AI_GATEWAY_ACCOUNT_ID:-$CF_ACCOUNT_ID}"
+    GATEWAY_ID="${CF_AI_GATEWAY_GATEWAY_ID}"
+
+    if [ -n "$GATEWAY_API_KEY" ] && [ -n "$GATEWAY_ACCOUNT_ID" ] && [ -n "$GATEWAY_ID" ]; then
         AUTH_ARGS="--auth-choice cloudflare-ai-gateway-api-key \
-            --cloudflare-ai-gateway-account-id $CF_AI_GATEWAY_ACCOUNT_ID \
-            --cloudflare-ai-gateway-gateway-id $CF_AI_GATEWAY_GATEWAY_ID \
-            --cloudflare-ai-gateway-api-key $CLOUDFLARE_AI_GATEWAY_API_KEY"
+            --cloudflare-ai-gateway-account-id $GATEWAY_ACCOUNT_ID \
+            --cloudflare-ai-gateway-gateway-id $GATEWAY_ID \
+            --cloudflare-ai-gateway-api-key $GATEWAY_API_KEY"
     elif [ -n "$ANTHROPIC_API_KEY" ]; then
         AUTH_ARGS="--auth-choice apiKey --anthropic-api-key $ANTHROPIC_API_KEY"
     elif [ -n "$OPENAI_API_KEY" ]; then
@@ -189,10 +200,39 @@ if (process.env.OPENCLAW_DEV_MODE === 'true') {
     config.gateway.controlUi.allowInsecureAuth = true;
 }
 
-// Legacy AI Gateway base URL override:
-// ANTHROPIC_BASE_URL is picked up natively by the Anthropic SDK,
-// so we don't need to patch the provider config. Writing a provider
-// entry without a models array breaks OpenClaw's config validation.
+// Workers AI models can emit malformed tool calls (e.g. memory_search with
+// "[object Object]" params) in some OpenAI-compatible paths. Disable memory
+// tools by default for workers-ai to prioritize reliable text replies.
+// Set OPENCLAW_ENABLE_MEMORY_PLUGIN=true to re-enable memory tools.
+{
+    const model = process.env.CF_AI_GATEWAY_MODEL || '';
+    const isWorkersAI = model.startsWith('workers-ai/');
+    const memoryPluginForcedOn = process.env.OPENCLAW_ENABLE_MEMORY_PLUGIN === 'true';
+    if (isWorkersAI && !memoryPluginForcedOn) {
+        config.plugins = config.plugins || {};
+        config.plugins.slots = config.plugins.slots || {};
+        config.plugins.slots.memory = 'none';
+        console.log('Disabled memory plugin for workers-ai compatibility');
+    }
+}
+
+// Refresh API keys on all existing providers from current env vars.
+// R2 backups may contain stale "dummy-key" or rotated keys.
+{
+    let freshKey = process.env.CLOUDFLARE_AI_GATEWAY_API_KEY || process.env.AI_GATEWAY_API_KEY;
+    // Skip placeholder values
+    if (freshKey && (freshKey === 'dummy' || freshKey === 'dummy-key' || freshKey.length < 10)) {
+        freshKey = process.env.ANTHROPIC_API_KEY || freshKey;
+    }
+    if (freshKey && config.models && config.models.providers) {
+        for (const [name, provider] of Object.entries(config.models.providers)) {
+            if (provider.apiKey && provider.apiKey !== freshKey) {
+                provider.apiKey = freshKey;
+                console.log('Refreshed apiKey for provider: ' + name);
+            }
+        }
+    }
+}
 
 // AI Gateway model override (CF_AI_GATEWAY_MODEL=provider/model-id)
 // Adds a provider entry for any AI Gateway provider and sets it as default model.
@@ -206,16 +246,24 @@ if (process.env.CF_AI_GATEWAY_MODEL) {
     const gwProvider = raw.substring(0, slashIdx);
     const modelId = raw.substring(slashIdx + 1);
 
-    const accountId = process.env.CF_AI_GATEWAY_ACCOUNT_ID;
+    // Support both new and legacy variable names
+    const accountId = process.env.CF_AI_GATEWAY_ACCOUNT_ID || process.env.CF_ACCOUNT_ID;
     const gatewayId = process.env.CF_AI_GATEWAY_GATEWAY_ID;
-    const apiKey = process.env.CLOUDFLARE_AI_GATEWAY_API_KEY;
+    let apiKey = process.env.CLOUDFLARE_AI_GATEWAY_API_KEY || process.env.AI_GATEWAY_API_KEY;
+    // Skip placeholder values and fall back to ANTHROPIC_API_KEY
+    // (for setups where a Cloudflare API token is stored under ANTHROPIC_API_KEY)
+    if (!apiKey || apiKey === 'dummy' || apiKey === 'dummy-key' || apiKey.length < 10) {
+        console.warn('CF AI Gateway API key looks like a placeholder, falling back to ANTHROPIC_API_KEY');
+        apiKey = process.env.ANTHROPIC_API_KEY || apiKey;
+    }
+    console.log('AI Gateway model API key: length=' + (apiKey ? apiKey.length : 0) + ' prefix=' + (apiKey ? apiKey.substring(0, 6) + '...' : 'none'));
 
     let baseUrl;
     if (accountId && gatewayId) {
         baseUrl = 'https://gateway.ai.cloudflare.com/v1/' + accountId + '/' + gatewayId + '/' + gwProvider;
         if (gwProvider === 'workers-ai') baseUrl += '/v1';
-    } else if (gwProvider === 'workers-ai' && process.env.CF_ACCOUNT_ID) {
-        baseUrl = 'https://api.cloudflare.com/client/v4/accounts/' + process.env.CF_ACCOUNT_ID + '/ai/v1';
+    } else if (gwProvider === 'workers-ai' && accountId) {
+        baseUrl = 'https://api.cloudflare.com/client/v4/accounts/' + accountId + '/ai/v1';
     }
 
     if (baseUrl && apiKey) {
@@ -273,10 +321,20 @@ if (process.env.DISCORD_BOT_TOKEN) {
 
 // Slack configuration
 if (process.env.SLACK_BOT_TOKEN && process.env.SLACK_APP_TOKEN) {
+    const dmPolicy = process.env.SLACK_DM_POLICY || 'pairing';
+    const allowFrom = process.env.SLACK_DM_ALLOW_FROM
+        ? process.env.SLACK_DM_ALLOW_FROM.split(',').map((id) => id.trim()).filter(Boolean)
+        : (dmPolicy === 'open' ? ['*'] : undefined);
+    const dm = {
+        enabled: true,
+        policy: dmPolicy,
+        ...(allowFrom ? { allowFrom } : {}),
+    };
     config.channels.slack = {
         botToken: process.env.SLACK_BOT_TOKEN,
         appToken: process.env.SLACK_APP_TOKEN,
         enabled: true,
+        dm: dm,
     };
 }
 
@@ -297,8 +355,8 @@ echo "Dev mode: ${OPENCLAW_DEV_MODE:-false}"
 
 if [ -n "$OPENCLAW_GATEWAY_TOKEN" ]; then
     echo "Starting gateway with token auth..."
-    exec openclaw gateway --port 18789 --verbose --allow-unconfigured --bind lan --token "$OPENCLAW_GATEWAY_TOKEN"
+    exec openclaw gateway --port 18789 --allow-unconfigured --bind lan --token "$OPENCLAW_GATEWAY_TOKEN"
 else
     echo "Starting gateway with device pairing (no token)..."
-    exec openclaw gateway --port 18789 --verbose --allow-unconfigured --bind lan
+    exec openclaw gateway --port 18789 --allow-unconfigured --bind lan
 fi

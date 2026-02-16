@@ -348,17 +348,36 @@ debug.get('/ws-test', async (c) => {
 // GET /debug/env - Show environment configuration (sanitized)
 debug.get('/env', async (c) => {
   return c.json({
-    has_anthropic_key: !!c.env.ANTHROPIC_API_KEY,
-    has_openai_key: !!c.env.OPENAI_API_KEY,
-    has_gateway_token: !!c.env.MOLTBOT_GATEWAY_TOKEN,
-    has_r2_access_key: !!c.env.R2_ACCESS_KEY_ID,
-    has_r2_secret_key: !!c.env.R2_SECRET_ACCESS_KEY,
-    has_cf_account_id: !!c.env.CF_ACCOUNT_ID,
+    ai_provider: {
+      has_anthropic_key: !!c.env.ANTHROPIC_API_KEY,
+      has_openai_key: !!c.env.OPENAI_API_KEY,
+      has_cloudflare_ai_gateway_api_key: !!c.env.CLOUDFLARE_AI_GATEWAY_API_KEY,
+      has_cf_ai_gateway_account_id: !!c.env.CF_AI_GATEWAY_ACCOUNT_ID,
+      has_cf_ai_gateway_gateway_id: !!c.env.CF_AI_GATEWAY_GATEWAY_ID,
+      cf_ai_gateway_model: c.env.CF_AI_GATEWAY_MODEL || null,
+      has_legacy_ai_gateway_api_key: !!c.env.AI_GATEWAY_API_KEY,
+      has_legacy_ai_gateway_base_url: !!c.env.AI_GATEWAY_BASE_URL,
+    },
+    auth: {
+      has_gateway_token: !!c.env.MOLTBOT_GATEWAY_TOKEN,
+      cf_access_team_domain: c.env.CF_ACCESS_TEAM_DOMAIN,
+      has_cf_access_aud: !!c.env.CF_ACCESS_AUD,
+    },
+    channels: {
+      has_slack_bot_token: !!c.env.SLACK_BOT_TOKEN,
+      has_slack_app_token: !!c.env.SLACK_APP_TOKEN,
+      slack_dm_policy: c.env.SLACK_DM_POLICY || null,
+      slack_dm_allow_from: c.env.SLACK_DM_ALLOW_FROM || null,
+      has_telegram_bot_token: !!c.env.TELEGRAM_BOT_TOKEN,
+      has_discord_bot_token: !!c.env.DISCORD_BOT_TOKEN,
+    },
+    storage: {
+      has_r2_access_key: !!c.env.R2_ACCESS_KEY_ID,
+      has_r2_secret_key: !!c.env.R2_SECRET_ACCESS_KEY,
+      has_cf_account_id: !!c.env.CF_ACCOUNT_ID,
+    },
     dev_mode: c.env.DEV_MODE,
     debug_routes: c.env.DEBUG_ROUTES,
-    bind_mode: 'lan',
-    cf_access_team_domain: c.env.CF_ACCESS_TEAM_DOMAIN,
-    has_cf_access_aud: !!c.env.CF_ACCESS_AUD,
   });
 });
 

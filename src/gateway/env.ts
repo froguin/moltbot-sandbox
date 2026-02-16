@@ -19,6 +19,10 @@ export function buildEnvVars(env: MoltbotEnv): Record<string, string> {
   if (env.CF_AI_GATEWAY_GATEWAY_ID) {
     envVars.CF_AI_GATEWAY_GATEWAY_ID = env.CF_AI_GATEWAY_GATEWAY_ID;
   }
+  // Legacy AI Gateway API key (support both names)
+  if (env.AI_GATEWAY_API_KEY) {
+    envVars.AI_GATEWAY_API_KEY = env.AI_GATEWAY_API_KEY;
+  }
 
   // Direct provider keys
   if (env.ANTHROPIC_API_KEY) envVars.ANTHROPIC_API_KEY = env.ANTHROPIC_API_KEY;
@@ -45,6 +49,8 @@ export function buildEnvVars(env: MoltbotEnv): Record<string, string> {
   if (env.DISCORD_DM_POLICY) envVars.DISCORD_DM_POLICY = env.DISCORD_DM_POLICY;
   if (env.SLACK_BOT_TOKEN) envVars.SLACK_BOT_TOKEN = env.SLACK_BOT_TOKEN;
   if (env.SLACK_APP_TOKEN) envVars.SLACK_APP_TOKEN = env.SLACK_APP_TOKEN;
+  if (env.SLACK_DM_POLICY) envVars.SLACK_DM_POLICY = env.SLACK_DM_POLICY;
+  if (env.SLACK_DM_ALLOW_FROM) envVars.SLACK_DM_ALLOW_FROM = env.SLACK_DM_ALLOW_FROM;
   if (env.CF_AI_GATEWAY_MODEL) envVars.CF_AI_GATEWAY_MODEL = env.CF_AI_GATEWAY_MODEL;
   if (env.CF_ACCOUNT_ID) envVars.CF_ACCOUNT_ID = env.CF_ACCOUNT_ID;
   if (env.CDP_SECRET) envVars.CDP_SECRET = env.CDP_SECRET;

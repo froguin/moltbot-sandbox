@@ -283,6 +283,10 @@ npm run deploy
 ```bash
 npx wrangler secret put SLACK_BOT_TOKEN
 npx wrangler secret put SLACK_APP_TOKEN
+# Optional: DM policy ('pairing' or 'open')
+npx wrangler secret put SLACK_DM_POLICY
+# Optional: comma-separated Slack user IDs allowed in DMs
+npx wrangler secret put SLACK_DM_ALLOW_FROM
 npm run deploy
 ```
 
@@ -436,6 +440,8 @@ The previous `AI_GATEWAY_API_KEY` + `AI_GATEWAY_BASE_URL` approach is still supp
 | `DISCORD_DM_POLICY` | No | Discord DM policy: `pairing` (default) or `open` |
 | `SLACK_BOT_TOKEN` | No | Slack bot token |
 | `SLACK_APP_TOKEN` | No | Slack app token |
+| `SLACK_DM_POLICY` | No | Slack DM policy: `pairing` (default) or `open` |
+| `SLACK_DM_ALLOW_FROM` | No | Comma-separated Slack user IDs allowed for DM access (e.g. `U02TFKH516C`) |
 | `CDP_SECRET` | No | Shared secret for CDP endpoint authentication (see [Browser Automation](#optional-browser-automation-cdp)) |
 | `WORKER_URL` | No | Public URL of the worker (required for CDP) |
 

@@ -346,10 +346,12 @@ app.all('*', async (c) => {
     // Relay messages from container to client, with error transformation
     containerWs.addEventListener('message', (event) => {
       if (debugLogs) {
+        const preview =
+          typeof event.data === 'string' ? event.data.slice(0, 5000) : '(binary)';
         console.log(
           '[WS] Container -> Client (raw):',
           typeof event.data,
-          typeof event.data === 'string' ? event.data.slice(0, 500) : '(binary)',
+          preview,
         );
       }
       let data = event.data;
@@ -402,10 +404,14 @@ app.all('*', async (c) => {
       if (reason.length > 123) {
         reason = reason.slice(0, 120) + '...';
       }
+      // 1005/1006/1015 are reserved and cannot be used in close frames.
+      // Normalize to a valid application error code to avoid runtime exceptions.
+      const closeCode =
+        event.code === 1005 || event.code === 1006 || event.code === 1015 ? 1011 : event.code;
       if (debugLogs) {
-        console.log('[WS] Transformed close reason:', reason);
+        console.log('[WS] Transformed close reason:', reason, 'closeCode:', closeCode);
       }
-      serverWs.close(event.code, reason);
+      serverWs.close(closeCode, reason);
     });
 
     // Handle errors

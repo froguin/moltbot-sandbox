@@ -49,6 +49,12 @@ adminApi.get('/devices', async (c) => {
     const logs = await proc.getLogs();
     const stdout = logs.stdout || '';
     const stderr = logs.stderr || '';
+    if (stdout.trim()) {
+      console.log('[admin/devices] openclaw devices list stdout:', stdout.slice(0, 4000));
+    }
+    if (stderr.trim()) {
+      console.error('[admin/devices] openclaw devices list stderr:', stderr.slice(0, 4000));
+    }
 
     // Try to parse JSON output
     try {
@@ -105,6 +111,12 @@ adminApi.post('/devices/:requestId/approve', async (c) => {
     const logs = await proc.getLogs();
     const stdout = logs.stdout || '';
     const stderr = logs.stderr || '';
+    if (stdout.trim()) {
+      console.log('[admin/devices/approve] stdout:', stdout.slice(0, 4000));
+    }
+    if (stderr.trim()) {
+      console.error('[admin/devices/approve] stderr:', stderr.slice(0, 4000));
+    }
 
     // Check for success indicators (case-insensitive, CLI outputs "Approved ...")
     const success = stdout.toLowerCase().includes('approved') || proc.exitCode === 0;
@@ -140,6 +152,13 @@ adminApi.post('/devices/approve-all', async (c) => {
 
     const listLogs = await listProc.getLogs();
     const stdout = listLogs.stdout || '';
+    const listStderr = listLogs.stderr || '';
+    if (stdout.trim()) {
+      console.log('[admin/devices/approve-all] list stdout:', stdout.slice(0, 4000));
+    }
+    if (listStderr.trim()) {
+      console.error('[admin/devices/approve-all] list stderr:', listStderr.slice(0, 4000));
+    }
 
     // Parse pending devices
     let pending: Array<{ requestId: string }> = [];
@@ -171,6 +190,18 @@ adminApi.post('/devices/approve-all', async (c) => {
 
         // eslint-disable-next-line no-await-in-loop
         const approveLogs = await approveProc.getLogs();
+        if (approveLogs.stdout?.trim()) {
+          console.log(
+            '[admin/devices/approve-all] approve stdout:',
+            approveLogs.stdout.slice(0, 4000),
+          );
+        }
+        if (approveLogs.stderr?.trim()) {
+          console.error(
+            '[admin/devices/approve-all] approve stderr:',
+            approveLogs.stderr.slice(0, 4000),
+          );
+        }
         const success =
           approveLogs.stdout?.toLowerCase().includes('approved') || approveProc.exitCode === 0;
 
@@ -189,6 +220,51 @@ adminApi.post('/devices/approve-all', async (c) => {
       approved: results.filter((r) => r.success).map((r) => r.requestId),
       failed: results.filter((r) => !r.success),
       message: `Approved ${approvedCount} of ${pending.length} device(s)`,
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: errorMessage }, 500);
+  }
+});
+
+// POST /api/admin/pairing/:channel/:code/approve - Approve a channel pairing request
+adminApi.post('/pairing/:channel/:code/approve', async (c) => {
+  const sandbox = c.get('sandbox');
+  const channel = c.req.param('channel');
+  const code = c.req.param('code');
+
+  if (!channel || !code) {
+    return c.json({ error: 'channel and code are required' }, 400);
+  }
+
+  try {
+    // Ensure moltbot is running first
+    await ensureMoltbotGateway(sandbox, c.env);
+
+    // Run OpenClaw CLI to approve the pairing
+    const proc = await sandbox.startProcess(`openclaw pairing approve ${channel} ${code}`);
+    await waitForProcess(proc, CLI_TIMEOUT_MS);
+
+    const logs = await proc.getLogs();
+    const stdout = logs.stdout || '';
+    const stderr = logs.stderr || '';
+    if (stdout.trim()) {
+      console.log('[admin/pairing/approve] stdout:', stdout.slice(0, 4000));
+    }
+    if (stderr.trim()) {
+      console.error('[admin/pairing/approve] stderr:', stderr.slice(0, 4000));
+    }
+
+    // Check for success
+    const success = stdout.toLowerCase().includes('approved') || proc.exitCode === 0;
+
+    return c.json({
+      success,
+      channel,
+      code,
+      message: success ? 'Pairing approved' : 'Approval may have failed',
+      stdout,
+      stderr,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
