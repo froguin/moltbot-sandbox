@@ -52,6 +52,7 @@ export function buildEnvVars(env: MoltbotEnv): Record<string, string> {
   if (env.SLACK_DM_POLICY) envVars.SLACK_DM_POLICY = env.SLACK_DM_POLICY;
   if (env.SLACK_DM_ALLOW_FROM) envVars.SLACK_DM_ALLOW_FROM = env.SLACK_DM_ALLOW_FROM;
   if (env.CF_AI_GATEWAY_MODEL) envVars.CF_AI_GATEWAY_MODEL = env.CF_AI_GATEWAY_MODEL;
+  if (env.OPENCLAW_AI_GATEWAY_API) envVars.OPENCLAW_AI_GATEWAY_API = env.OPENCLAW_AI_GATEWAY_API;
   if (env.CF_ACCOUNT_ID) envVars.CF_ACCOUNT_ID = env.CF_ACCOUNT_ID;
   if (env.CDP_SECRET) envVars.CDP_SECRET = env.CDP_SECRET;
   if (env.WORKER_URL) envVars.WORKER_URL = env.WORKER_URL;

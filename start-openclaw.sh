@@ -241,49 +241,61 @@ if (process.env.OPENCLAW_DEV_MODE === 'true') {
 //   openai/gpt-4o
 //   anthropic/claude-sonnet-4-5
 if (process.env.CF_AI_GATEWAY_MODEL) {
-    const raw = process.env.CF_AI_GATEWAY_MODEL;
+    const raw = process.env.CF_AI_GATEWAY_MODEL.trim();
     const slashIdx = raw.indexOf('/');
-    const gwProvider = raw.substring(0, slashIdx);
-    const modelId = raw.substring(slashIdx + 1);
-
-    // Support both new and legacy variable names
-    const accountId = process.env.CF_AI_GATEWAY_ACCOUNT_ID || process.env.CF_ACCOUNT_ID;
-    const gatewayId = process.env.CF_AI_GATEWAY_GATEWAY_ID;
-    let apiKey = process.env.CLOUDFLARE_AI_GATEWAY_API_KEY || process.env.AI_GATEWAY_API_KEY;
-    // Skip placeholder values and fall back to ANTHROPIC_API_KEY
-    // (for setups where a Cloudflare API token is stored under ANTHROPIC_API_KEY)
-    if (!apiKey || apiKey === 'dummy' || apiKey === 'dummy-key' || apiKey.length < 10) {
-        console.warn('CF AI Gateway API key looks like a placeholder, falling back to ANTHROPIC_API_KEY');
-        apiKey = process.env.ANTHROPIC_API_KEY || apiKey;
-    }
-    console.log('AI Gateway model API key: length=' + (apiKey ? apiKey.length : 0) + ' prefix=' + (apiKey ? apiKey.substring(0, 6) + '...' : 'none'));
-
-    let baseUrl;
-    if (accountId && gatewayId) {
-        baseUrl = 'https://gateway.ai.cloudflare.com/v1/' + accountId + '/' + gatewayId + '/' + gwProvider;
-        if (gwProvider === 'workers-ai') baseUrl += '/v1';
-    } else if (gwProvider === 'workers-ai' && accountId) {
-        baseUrl = 'https://api.cloudflare.com/client/v4/accounts/' + accountId + '/ai/v1';
-    }
-
-    if (baseUrl && apiKey) {
-        const api = gwProvider === 'anthropic' ? 'anthropic-messages' : 'openai-completions';
-        const providerName = 'cf-ai-gw-' + gwProvider;
-
-        config.models = config.models || {};
-        config.models.providers = config.models.providers || {};
-        config.models.providers[providerName] = {
-            baseUrl: baseUrl,
-            apiKey: apiKey,
-            api: api,
-            models: [{ id: modelId, name: modelId, contextWindow: 131072, maxTokens: 8192 }],
-        };
-        config.agents = config.agents || {};
-        config.agents.defaults = config.agents.defaults || {};
-        config.agents.defaults.model = { primary: providerName + '/' + modelId };
-        console.log('AI Gateway model override: provider=' + providerName + ' model=' + modelId + ' via ' + baseUrl);
+    if (slashIdx <= 0 || slashIdx >= raw.length - 1) {
+        console.warn('Invalid CF_AI_GATEWAY_MODEL format (expected provider/model-id): ' + raw);
     } else {
-        console.warn('CF_AI_GATEWAY_MODEL set but missing required config (account ID, gateway ID, or API key)');
+        const gwProvider = raw.substring(0, slashIdx).trim().toLowerCase();
+        const modelId = raw.substring(slashIdx + 1).trim();
+
+        // Support both new and legacy variable names
+        const accountId = process.env.CF_AI_GATEWAY_ACCOUNT_ID || process.env.CF_ACCOUNT_ID;
+        const gatewayId = process.env.CF_AI_GATEWAY_GATEWAY_ID;
+        let apiKey = process.env.CLOUDFLARE_AI_GATEWAY_API_KEY || process.env.AI_GATEWAY_API_KEY;
+        const apiKeyLooksPlaceholder = !apiKey || apiKey === 'dummy' || apiKey === 'dummy-key' || apiKey.length < 10;
+        // Only fall back to ANTHROPIC_API_KEY for anthropic provider.
+        // Falling back for non-anthropic providers (e.g. openrouter, groq) can silently set the wrong key.
+        if (apiKeyLooksPlaceholder) {
+            if (gwProvider === 'anthropic' && process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY.length >= 10) {
+                console.warn('CF AI Gateway API key looks like a placeholder, falling back to ANTHROPIC_API_KEY for anthropic provider');
+                apiKey = process.env.ANTHROPIC_API_KEY;
+            } else {
+                apiKey = '';
+                console.warn('CF AI Gateway API key is missing or placeholder for provider=' + gwProvider);
+            }
+        }
+        console.log('AI Gateway model API key: length=' + (apiKey ? apiKey.length : 0) + ' prefix=' + (apiKey ? apiKey.substring(0, 6) + '...' : 'none'));
+
+        let baseUrl;
+        if (accountId && gatewayId) {
+            baseUrl = 'https://gateway.ai.cloudflare.com/v1/' + accountId + '/' + gatewayId + '/' + gwProvider;
+            if (gwProvider === 'workers-ai') baseUrl += '/v1';
+        } else if (gwProvider === 'workers-ai' && accountId) {
+            baseUrl = 'https://api.cloudflare.com/client/v4/accounts/' + accountId + '/ai/v1';
+        }
+
+        if (baseUrl && apiKey) {
+            const defaultApi = gwProvider === 'anthropic' ? 'anthropic-messages' : 'openai-completions';
+            const forcedApi = (process.env.OPENCLAW_AI_GATEWAY_API || '').trim();
+            const api = forcedApi || defaultApi;
+            const providerName = 'cf-ai-gw-' + gwProvider;
+
+            config.models = config.models || {};
+            config.models.providers = config.models.providers || {};
+            config.models.providers[providerName] = {
+                baseUrl: baseUrl,
+                apiKey: apiKey,
+                api: api,
+                models: [{ id: modelId, name: modelId, contextWindow: 131072, maxTokens: 8192 }],
+            };
+            config.agents = config.agents || {};
+            config.agents.defaults = config.agents.defaults || {};
+            config.agents.defaults.model = { primary: providerName + '/' + modelId };
+            console.log('AI Gateway model override: provider=' + providerName + ' model=' + modelId + ' api=' + api + ' via ' + baseUrl);
+        } else {
+            console.warn('CF_AI_GATEWAY_MODEL set but missing required config (account ID, gateway ID, or API key)');
+        }
     }
 }
 

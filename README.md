@@ -399,6 +399,7 @@ This works with any [AI Gateway provider](https://developers.cloudflare.com/ai-g
 |----------|-------------------------------------|---------------|
 | Workers AI | `workers-ai/@cf/meta/llama-3.3-70b-instruct-fp8-fast` | Cloudflare API token |
 | OpenAI | `openai/gpt-4o` | OpenAI API key |
+| OpenRouter | `openrouter/upstage/solar-pro-3:free` | OpenRouter API key |
 | Anthropic | `anthropic/claude-sonnet-4-5` | Anthropic API key |
 | Groq | `groq/llama-3.3-70b` | Groq API key |
 
@@ -420,6 +421,7 @@ The previous `AI_GATEWAY_API_KEY` + `AI_GATEWAY_BASE_URL` approach is still supp
 | `CF_AI_GATEWAY_ACCOUNT_ID` | Yes* | Your Cloudflare account ID (used to construct the gateway URL) |
 | `CF_AI_GATEWAY_GATEWAY_ID` | Yes* | Your AI Gateway ID (used to construct the gateway URL) |
 | `CF_AI_GATEWAY_MODEL` | No | Override default model: `provider/model-id` (e.g. `workers-ai/@cf/meta/llama-3.3-70b-instruct-fp8-fast`). See [Choosing a Model](#choosing-a-model) |
+| `OPENCLAW_AI_GATEWAY_API` | No | Force API adapter for AI Gateway model providers (e.g. `openai-completions`, `anthropic-messages`) |
 | `ANTHROPIC_API_KEY` | Yes* | Direct Anthropic API key (alternative to AI Gateway) |
 | `ANTHROPIC_BASE_URL` | No | Direct Anthropic API base URL |
 | `OPENAI_API_KEY` | No | OpenAI API key (alternative provider) |

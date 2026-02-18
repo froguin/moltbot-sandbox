@@ -142,6 +142,14 @@ describe('buildEnvVars', () => {
     expect(result.CF_AI_GATEWAY_MODEL).toBe('workers-ai/@cf/meta/llama-3.3-70b-instruct-fp8-fast');
   });
 
+  it('passes OPENCLAW_AI_GATEWAY_API to container', () => {
+    const env = createMockEnv({
+      OPENCLAW_AI_GATEWAY_API: 'openai-completions',
+    });
+    const result = buildEnvVars(env);
+    expect(result.OPENCLAW_AI_GATEWAY_API).toBe('openai-completions');
+  });
+
   it('passes CF_ACCOUNT_ID to container', () => {
     const env = createMockEnv({ CF_ACCOUNT_ID: 'acct-123' });
     const result = buildEnvVars(env);
