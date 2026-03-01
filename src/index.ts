@@ -32,7 +32,7 @@ import { redactSensitiveParams } from './utils/logging';
 import loadingPageHtml from './assets/loading.html';
 import configErrorHtml from './assets/config-error.html';
 
-const SANDBOX_INSTANCE_NAME = 'moltbot-v2';
+const SANDBOX_INSTANCE_NAME = 'moltbot';
 
 /**
  * Transform error messages from the gateway to be more user-friendly.
