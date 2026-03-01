@@ -189,6 +189,10 @@ config.channels = config.channels || {};
 config.gateway.port = 18789;
 config.gateway.mode = 'local';
 config.gateway.trustedProxies = ['10.1.0.0'];
+config.gateway.controlUi = config.gateway.controlUi || {};
+// OpenClaw requires explicit origin handling for control UI.
+// In worker proxy deployments, Host-header fallback is the most stable mode.
+config.gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback = true;
 
 if (process.env.OPENCLAW_GATEWAY_TOKEN) {
     config.gateway.auth = config.gateway.auth || {};
@@ -196,7 +200,6 @@ if (process.env.OPENCLAW_GATEWAY_TOKEN) {
 }
 
 if (process.env.OPENCLAW_DEV_MODE === 'true') {
-    config.gateway.controlUi = config.gateway.controlUi || {};
     config.gateway.controlUi.allowInsecureAuth = true;
 }
 
@@ -344,6 +347,11 @@ if (process.env.SLACK_BOT_TOKEN && process.env.SLACK_APP_TOKEN) {
         dmPolicy: dmPolicy,
         ...(allowFrom ? { allowFrom } : {}),
     };
+}
+
+// Remove legacy Slack DM schema keys that OpenClaw doctor keeps migrating.
+if (config.channels?.slack?.dm) {
+    delete config.channels.slack.dm;
 }
 
 // Browser Rendering configuration (CDP)
