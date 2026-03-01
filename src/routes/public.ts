@@ -22,6 +22,14 @@ let consecutiveProbeFailures = 0;
 const PROBE_TIMEOUT_MS = 2500;
 const RECOVERY_FAILURE_THRESHOLD = 5;
 const RECOVERY_COOLDOWN_MS = 60_000;
+const BOOTSTRAP_LOG_MAX_CHARS = 1200;
+
+function summarizeLogs(logText: string): string {
+  if (!logText) return '(empty)';
+  return logText.length > BOOTSTRAP_LOG_MAX_CHARS
+    ? `${logText.slice(-BOOTSTRAP_LOG_MAX_CHARS)}`
+    : logText;
+}
 
 // GET /sandbox-health - Health check endpoint
 publicRoutes.get('/sandbox-health', (c) => {
@@ -54,7 +62,30 @@ publicRoutes.get('/api/status', async (c) => {
     const process = await findExistingMoltbotProcess(sandbox);
     if (!process) {
       consecutiveProbeFailures = 0;
-      await kickStartMoltbotGateway(sandbox, c.env);
+      const started = await kickStartMoltbotGateway(sandbox, c.env);
+      if (started) {
+        c.executionCtx.waitUntil(
+          (async () => {
+            try {
+              await started.waitForPort(18789, { mode: 'tcp', timeout: 7000 });
+            } catch (bootstrapErr) {
+              try {
+                const logs = await started.getLogs();
+                console.error(
+                  '[STATUS] Gateway bootstrap probe failed:',
+                  bootstrapErr,
+                  'stderr:',
+                  summarizeLogs(logs.stderr || ''),
+                  'stdout:',
+                  summarizeLogs(logs.stdout || ''),
+                );
+              } catch (logErr) {
+                console.error('[STATUS] Failed to get bootstrap logs:', logErr);
+              }
+            }
+          })(),
+        );
+      }
       const payload: StatusPayload = { ok: false, status: 'not_running' };
       statusCache = { payload, expiresAt: Date.now() + 2500 };
       return c.json(payload);
