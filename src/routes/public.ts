@@ -19,9 +19,11 @@ type StatusPayload = {
 let statusCache: { expiresAt: number; payload: StatusPayload } | null = null;
 let lastRecoveryAt = 0;
 let consecutiveProbeFailures = 0;
+let lastProbeFailureLogAt = 0;
 const PROBE_TIMEOUT_MS = 2500;
 const RECOVERY_FAILURE_THRESHOLD = 5;
 const RECOVERY_COOLDOWN_MS = 60_000;
+const PROBE_FAILURE_LOG_COOLDOWN_MS = 30_000;
 const BOOTSTRAP_LOG_MAX_CHARS = 1200;
 
 function summarizeLogs(logText: string): string {
@@ -108,11 +110,28 @@ publicRoutes.get('/api/status', async (c) => {
     } catch {
       consecutiveProbeFailures += 1;
       const now = Date.now();
+      if (now - lastProbeFailureLogAt >= PROBE_FAILURE_LOG_COOLDOWN_MS) {
+        lastProbeFailureLogAt = now;
+        try {
+          const logs = await process.getLogs();
+          console.error(
+            '[STATUS] Gateway probe failed for process',
+            process.id,
+            'stderr:',
+            summarizeLogs(logs.stderr || ''),
+            'stdout:',
+            summarizeLogs(logs.stdout || ''),
+          );
+        } catch (logErr) {
+          console.error('[STATUS] Failed to get logs after probe failure:', logErr);
+        }
+      }
+      const recoveryCheckAt = Date.now();
       if (
         consecutiveProbeFailures >= RECOVERY_FAILURE_THRESHOLD &&
-        now - lastRecoveryAt >= RECOVERY_COOLDOWN_MS
+        recoveryCheckAt - lastRecoveryAt >= RECOVERY_COOLDOWN_MS
       ) {
-        lastRecoveryAt = now;
+        lastRecoveryAt = recoveryCheckAt;
         consecutiveProbeFailures = 0;
         c.executionCtx.waitUntil(
           recoverMoltbotGateway(sandbox, c.env).catch((err: Error) => {
