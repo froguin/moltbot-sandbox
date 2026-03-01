@@ -40,10 +40,15 @@ publicRoutes.get('/api/status', async (c) => {
       return c.json({ ok: false, status: 'not_running' });
     }
 
-    // Process exists, check if it's actually responding
-    // Try to reach the gateway with a short timeout
+    // Keep this endpoint lightweight because the loading page polls frequently.
+    // If the gateway process is already running, return immediately.
+    if (process.status === 'running') {
+      return c.json({ ok: true, status: 'running', processId: process.id });
+    }
+
+    // For "starting" processes, perform a short readiness probe.
     try {
-      await process.waitForPort(18789, { mode: 'tcp', timeout: 5000 });
+      await process.waitForPort(18789, { mode: 'tcp', timeout: 1200 });
       return c.json({ ok: true, status: 'running', processId: process.id });
     } catch {
       return c.json({ ok: false, status: 'not_responding', processId: process.id });
