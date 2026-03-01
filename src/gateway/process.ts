@@ -9,6 +9,8 @@ import { mountR2Storage } from './r2';
 let gatewayStartupPromise: Promise<Process> | null = null;
 let gatewayRecoveryPromise: Promise<void> | null = null;
 
+const GATEWAY_START_COMMAND = `/bin/bash -lc '/usr/local/bin/start-openclaw.sh || true; node -e "const fs=require(\\\"fs\\\");const p=\\\"/root/.openclaw/openclaw.json\\\";let c={};try{c=JSON.parse(fs.readFileSync(p,\\\"utf8\\\"))}catch{};c.gateway=c.gateway||{};c.gateway.controlUi=c.gateway.controlUi||{};c.gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback=true;if(c.channels&&c.channels.slack&&c.channels.slack.dm){delete c.channels.slack.dm;}fs.mkdirSync(\\\"/root/.openclaw\\\",{recursive:true});fs.writeFileSync(p,JSON.stringify(c,null,2));"; openclaw doctor --fix >/dev/null 2>&1 || true; if [ -n "$OPENCLAW_GATEWAY_TOKEN" ]; then exec openclaw gateway --port 18789 --allow-unconfigured --bind lan --token "$OPENCLAW_GATEWAY_TOKEN"; else exec openclaw gateway --port 18789 --allow-unconfigured --bind lan; fi'`;
+
 function isGatewayProcessCommand(command: string): boolean {
   const isGatewayProcess =
     command.includes('start-openclaw.sh') ||
@@ -60,7 +62,7 @@ export async function kickStartMoltbotGateway(sandbox: Sandbox, env: MoltbotEnv)
   }
 
   const envVars = buildEnvVars(env);
-  const command = '/usr/local/bin/start-openclaw.sh';
+  const command = GATEWAY_START_COMMAND;
 
   try {
     const process = await sandbox.startProcess(command, {
@@ -179,7 +181,7 @@ async function ensureMoltbotGatewayInternal(sandbox: Sandbox, env: MoltbotEnv): 
   // Start a new OpenClaw gateway
   console.log('Starting new OpenClaw gateway...');
   const envVars = buildEnvVars(env);
-  const command = '/usr/local/bin/start-openclaw.sh';
+  const command = GATEWAY_START_COMMAND;
 
   console.log('Starting process with command:', command);
   console.log('Environment vars being passed:', Object.keys(envVars));
