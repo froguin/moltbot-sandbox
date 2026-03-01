@@ -7,6 +7,23 @@ import { mountR2Storage } from './r2';
 // Prevent concurrent requests from starting duplicate gateway processes.
 // This lock is process-local to the current Worker isolate.
 let gatewayStartupPromise: Promise<Process> | null = null;
+let gatewayRecoveryPromise: Promise<void> | null = null;
+
+function isGatewayProcessCommand(command: string): boolean {
+  const isGatewayProcess =
+    command.includes('start-openclaw.sh') ||
+    command.includes('openclaw gateway') ||
+    // Legacy: match old startup script during transition
+    command.includes('start-moltbot.sh') ||
+    command.includes('clawdbot gateway');
+  const isCliCommand =
+    command.includes('openclaw devices') ||
+    command.includes('openclaw --version') ||
+    command.includes('openclaw onboard') ||
+    command.includes('clawdbot devices') ||
+    command.includes('clawdbot --version');
+  return isGatewayProcess && !isCliCommand;
+}
 
 /**
  * Find an existing OpenClaw gateway process
@@ -18,22 +35,7 @@ export async function findExistingMoltbotProcess(sandbox: Sandbox): Promise<Proc
   try {
     const processes = await sandbox.listProcesses();
     for (const proc of processes) {
-      // Match gateway process (openclaw gateway or legacy clawdbot gateway)
-      // Don't match CLI commands like "openclaw devices list"
-      const isGatewayProcess =
-        proc.command.includes('start-openclaw.sh') ||
-        proc.command.includes('openclaw gateway') ||
-        // Legacy: match old startup script during transition
-        proc.command.includes('start-moltbot.sh') ||
-        proc.command.includes('clawdbot gateway');
-      const isCliCommand =
-        proc.command.includes('openclaw devices') ||
-        proc.command.includes('openclaw --version') ||
-        proc.command.includes('openclaw onboard') ||
-        proc.command.includes('clawdbot devices') ||
-        proc.command.includes('clawdbot --version');
-
-      if (isGatewayProcess && !isCliCommand) {
+      if (isGatewayProcessCommand(proc.command)) {
         if (proc.status === 'starting' || proc.status === 'running') {
           return proc;
         }
@@ -69,6 +71,47 @@ export async function kickStartMoltbotGateway(sandbox: Sandbox, env: MoltbotEnv)
   } catch (err) {
     console.error('Failed to kickstart gateway process:', err);
     return null;
+  }
+}
+
+/**
+ * Force-recover gateway by killing stuck gateway-like processes and starting a new one.
+ * This path is designed for lightweight recovery loops (e.g., /api/status polling).
+ */
+export async function recoverMoltbotGateway(sandbox: Sandbox, env: MoltbotEnv): Promise<void> {
+  if (gatewayRecoveryPromise) {
+    console.log('Gateway recovery already in progress, waiting for existing attempt...');
+    return gatewayRecoveryPromise;
+  }
+
+  gatewayRecoveryPromise = (async () => {
+    try {
+      const processes = await sandbox.listProcesses();
+      const candidates = processes.filter(
+        (proc) =>
+          isGatewayProcessCommand(proc.command) &&
+          (proc.status === 'starting' || proc.status === 'running'),
+      );
+
+      for (const proc of candidates) {
+        try {
+          console.log('Killing stuck gateway process:', proc.id, proc.command);
+          await proc.kill();
+        } catch (killErr) {
+          console.log('Failed to kill stuck gateway process:', proc.id, killErr);
+        }
+      }
+
+      await kickStartMoltbotGateway(sandbox, env);
+    } catch (err) {
+      console.error('Gateway recovery failed:', err);
+    }
+  })();
+
+  try {
+    await gatewayRecoveryPromise;
+  } finally {
+    gatewayRecoveryPromise = null;
   }
 }
 

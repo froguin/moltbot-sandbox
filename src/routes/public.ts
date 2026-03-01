@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { AppEnv } from '../types';
 import { MOLTBOT_PORT } from '../config';
-import { findExistingMoltbotProcess, kickStartMoltbotGateway } from '../gateway';
+import { findExistingMoltbotProcess, kickStartMoltbotGateway, recoverMoltbotGateway } from '../gateway';
 
 /**
  * Public routes - NO Cloudflare Access authentication required
@@ -17,6 +17,8 @@ type StatusPayload = {
   error?: string;
 };
 let statusCache: { expiresAt: number; payload: StatusPayload } | null = null;
+let lastRecoveryAt = 0;
+const RECOVERY_COOLDOWN_MS = 15_000;
 
 // GET /sandbox-health - Health check endpoint
 publicRoutes.get('/sandbox-health', (c) => {
@@ -63,6 +65,15 @@ publicRoutes.get('/api/status', async (c) => {
       statusCache = { payload, expiresAt: Date.now() + 1500 };
       return c.json(payload);
     } catch {
+      const now = Date.now();
+      if (now - lastRecoveryAt >= RECOVERY_COOLDOWN_MS) {
+        lastRecoveryAt = now;
+        c.executionCtx.waitUntil(
+          recoverMoltbotGateway(sandbox, c.env).catch((err: Error) => {
+            console.error('[STATUS] Recovery gateway start failed:', err);
+          }),
+        );
+      }
       const payload: StatusPayload = { ok: false, status: 'not_responding', processId: process.id };
       statusCache = { payload, expiresAt: Date.now() + 1500 };
       return c.json(payload);

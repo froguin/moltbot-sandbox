@@ -1,5 +1,10 @@
 export { buildEnvVars } from './env';
 export { mountR2Storage } from './r2';
-export { findExistingMoltbotProcess, ensureMoltbotGateway, kickStartMoltbotGateway } from './process';
+export {
+  findExistingMoltbotProcess,
+  ensureMoltbotGateway,
+  kickStartMoltbotGateway,
+  recoverMoltbotGateway,
+} from './process';
 export { syncToR2 } from './sync';
 export { waitForProcess } from './utils';

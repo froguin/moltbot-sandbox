@@ -313,3 +313,4 @@ R2 is mounted via s3fs at `/data/moltbot`. Important gotchas:
 - **Status Poll Cache**: Added a short TTL cache (1.5s) for `/api/status` responses to reduce repeated `listProcesses` pressure from loading-page polling.
 - **Status-triggered Kickstart**: `/api/status` now calls `kickStartMoltbotGateway()` when no process is found. This starts `start-openclaw.sh` without long `waitUntil()` tasks.
 - **Proxy Kickstart Path**: HTML requests in `src/index.ts` now use `kickStartMoltbotGateway()` before serving the loading page, reducing missed startup attempts.
+- **Not-Responding Recovery**: Added `recoverMoltbotGateway()` in `src/gateway/process.ts` and wired `/api/status` to trigger recovery with a cooldown (15s) when the gateway process exists but port probe fails.
