@@ -71,6 +71,10 @@
   "browser": {
     "binding": "BROWSER",
   },
+  "vars": {
+    "SANDBOX_SLEEP_AFTER": "10m",
+    "SANDBOX_TRANSPORT": "websocket"
+  },
   // Note: CF_ACCOUNT_ID should be set via `wrangler secret put CF_ACCOUNT_ID`
   // Secrets to configure via `wrangler secret put`:
   //
