@@ -67,6 +67,11 @@ publicRoutes.get('/api/status', async (c) => {
       statusCache = { payload, expiresAt: Date.now() + 1500 };
       return c.json(payload);
     } catch {
+      c.executionCtx.waitUntil(
+        ensureMoltbotGateway(sandbox, c.env).catch((err: Error) => {
+          console.error('[STATUS] Recovery gateway start failed:', err);
+        }),
+      );
       const payload: StatusPayload = { ok: false, status: 'not_responding', processId: process.id };
       statusCache = { payload, expiresAt: Date.now() + 1500 };
       return c.json(payload);

@@ -312,3 +312,4 @@ R2 is mounted via s3fs at `/data/moltbot`. Important gotchas:
 - **Readiness Verification Fix**: Tightened readiness checks in both `/api/status` and proxy path (`src/index.ts`) to require a short successful `waitForPort` probe before treating the gateway as ready. This prevents `/chat` reload loops when a process is marked `running` but the gateway port is not actually accepting connections.
 - **Status Poll Cache**: Added a short TTL cache (1.5s) for `/api/status` responses to reduce repeated `listProcesses` pressure from loading-page polling.
 - **Status-triggered Recovery Start**: `/api/status` now triggers a background `ensureMoltbotGateway()` when no process is found, so loading-page polling can recover from missed startup attempts.
+- **Stuck Process Recovery Loop**: `/api/status` now also triggers background recovery when process exists but port probe fails (`not_responding`), allowing automatic kill/restart via `ensureMoltbotGateway()`.
