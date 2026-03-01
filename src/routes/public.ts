@@ -64,27 +64,26 @@ publicRoutes.get('/api/status', async (c) => {
       consecutiveProbeFailures = 0;
       const started = await kickStartMoltbotGateway(sandbox, c.env);
       if (started) {
-        c.executionCtx.waitUntil(
-          (async () => {
-            try {
-              await started.waitForPort(18789, { mode: 'tcp', timeout: 7000 });
-            } catch (bootstrapErr) {
-              try {
-                const logs = await started.getLogs();
-                console.error(
-                  '[STATUS] Gateway bootstrap probe failed:',
-                  bootstrapErr,
-                  'stderr:',
-                  summarizeLogs(logs.stderr || ''),
-                  'stdout:',
-                  summarizeLogs(logs.stdout || ''),
-                );
-              } catch (logErr) {
-                console.error('[STATUS] Failed to get bootstrap logs:', logErr);
-              }
-            }
-          })(),
-        );
+        try {
+          await started.waitForPort(18789, { mode: 'tcp', timeout: 7000 });
+          const payload: StatusPayload = { ok: true, status: 'running', processId: started.id };
+          statusCache = { payload, expiresAt: Date.now() + 3000 };
+          return c.json(payload);
+        } catch (bootstrapErr) {
+          try {
+            const logs = await started.getLogs();
+            console.error(
+              '[STATUS] Gateway bootstrap probe failed:',
+              bootstrapErr,
+              'stderr:',
+              summarizeLogs(logs.stderr || ''),
+              'stdout:',
+              summarizeLogs(logs.stdout || ''),
+            );
+          } catch (logErr) {
+            console.error('[STATUS] Failed to get bootstrap logs:', logErr);
+          }
+        }
       }
       const payload: StatusPayload = { ok: false, status: 'not_running' };
       statusCache = { payload, expiresAt: Date.now() + 2500 };
