@@ -32,6 +32,8 @@ import { redactSensitiveParams } from './utils/logging';
 import loadingPageHtml from './assets/loading.html';
 import configErrorHtml from './assets/config-error.html';
 
+const SANDBOX_INSTANCE_NAME = 'moltbot-v2';
+
 /**
  * Transform error messages from the gateway to be more user-friendly.
  */
@@ -135,7 +137,7 @@ app.use('*', async (c, next) => {
 // Middleware: Initialize sandbox for all requests
 app.use('*', async (c, next) => {
   const options = buildSandboxOptions(c.env);
-  const sandbox = getSandbox(c.env.Sandbox, 'moltbot', options);
+  const sandbox = getSandbox(c.env.Sandbox, SANDBOX_INSTANCE_NAME, options);
   c.set('sandbox', sandbox);
   await next();
 });
@@ -464,7 +466,7 @@ async function scheduled(
   _ctx: ExecutionContext,
 ): Promise<void> {
   const options = buildSandboxOptions(env);
-  const sandbox = getSandbox(env.Sandbox, 'moltbot', options);
+  const sandbox = getSandbox(env.Sandbox, SANDBOX_INSTANCE_NAME, options);
 
   const gatewayProcess = await findExistingMoltbotProcess(sandbox);
   if (!gatewayProcess) {
