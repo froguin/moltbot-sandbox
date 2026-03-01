@@ -46,6 +46,33 @@ export async function findExistingMoltbotProcess(sandbox: Sandbox): Promise<Proc
 }
 
 /**
+ * Start the gateway process if missing, without waiting for port readiness.
+ * Useful for lightweight kick-off paths such as loading/status endpoints.
+ */
+export async function kickStartMoltbotGateway(sandbox: Sandbox, env: MoltbotEnv): Promise<Process | null> {
+  await mountR2Storage(sandbox, env);
+
+  const existingProcess = await findExistingMoltbotProcess(sandbox);
+  if (existingProcess) {
+    return existingProcess;
+  }
+
+  const envVars = buildEnvVars(env);
+  const command = '/usr/local/bin/start-openclaw.sh';
+
+  try {
+    const process = await sandbox.startProcess(command, {
+      env: Object.keys(envVars).length > 0 ? envVars : undefined,
+    });
+    console.log('Kickstarted gateway process:', process.id, 'status:', process.status);
+    return process;
+  } catch (err) {
+    console.error('Failed to kickstart gateway process:', err);
+    return null;
+  }
+}
+
+/**
  * Ensure the OpenClaw gateway is running
  *
  * This will:
