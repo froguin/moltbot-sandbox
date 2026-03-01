@@ -18,7 +18,10 @@ type StatusPayload = {
 };
 let statusCache: { expiresAt: number; payload: StatusPayload } | null = null;
 let lastRecoveryAt = 0;
-const RECOVERY_COOLDOWN_MS = 15_000;
+let consecutiveProbeFailures = 0;
+const PROBE_TIMEOUT_MS = 2500;
+const RECOVERY_FAILURE_THRESHOLD = 5;
+const RECOVERY_COOLDOWN_MS = 60_000;
 
 // GET /sandbox-health - Health check endpoint
 publicRoutes.get('/sandbox-health', (c) => {
@@ -50,24 +53,37 @@ publicRoutes.get('/api/status', async (c) => {
   try {
     const process = await findExistingMoltbotProcess(sandbox);
     if (!process) {
+      consecutiveProbeFailures = 0;
       await kickStartMoltbotGateway(sandbox, c.env);
       const payload: StatusPayload = { ok: false, status: 'not_running' };
-      statusCache = { payload, expiresAt: Date.now() + 1500 };
+      statusCache = { payload, expiresAt: Date.now() + 2500 };
       return c.json(payload);
     }
 
     // Keep this endpoint lightweight because the loading page polls frequently.
     // Even if process.status says "running", verify the gateway port briefly
     // to avoid false-ready loops when the process is unhealthy.
+    if (process.status === 'starting') {
+      const payload: StatusPayload = { ok: false, status: 'not_running', processId: process.id };
+      statusCache = { payload, expiresAt: Date.now() + 2500 };
+      return c.json(payload);
+    }
+
     try {
-      await process.waitForPort(18789, { mode: 'tcp', timeout: 600 });
+      await process.waitForPort(18789, { mode: 'tcp', timeout: PROBE_TIMEOUT_MS });
+      consecutiveProbeFailures = 0;
       const payload: StatusPayload = { ok: true, status: 'running', processId: process.id };
-      statusCache = { payload, expiresAt: Date.now() + 1500 };
+      statusCache = { payload, expiresAt: Date.now() + 3000 };
       return c.json(payload);
     } catch {
+      consecutiveProbeFailures += 1;
       const now = Date.now();
-      if (now - lastRecoveryAt >= RECOVERY_COOLDOWN_MS) {
+      if (
+        consecutiveProbeFailures >= RECOVERY_FAILURE_THRESHOLD &&
+        now - lastRecoveryAt >= RECOVERY_COOLDOWN_MS
+      ) {
         lastRecoveryAt = now;
+        consecutiveProbeFailures = 0;
         c.executionCtx.waitUntil(
           recoverMoltbotGateway(sandbox, c.env).catch((err: Error) => {
             console.error('[STATUS] Recovery gateway start failed:', err);
@@ -75,10 +91,11 @@ publicRoutes.get('/api/status', async (c) => {
         );
       }
       const payload: StatusPayload = { ok: false, status: 'not_responding', processId: process.id };
-      statusCache = { payload, expiresAt: Date.now() + 1500 };
+      statusCache = { payload, expiresAt: Date.now() + 2500 };
       return c.json(payload);
     }
   } catch (err) {
+    consecutiveProbeFailures = 0;
     const payload: StatusPayload = {
       ok: false,
       status: 'error',
