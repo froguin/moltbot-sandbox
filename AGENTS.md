@@ -246,6 +246,42 @@ npx wrangler secret list
 
 Enable debug routes with `DEBUG_ROUTES=true` and check `/debug/processes`.
 
+### Agent Access Token (Local-only)
+
+For agent diagnostics in production, use a Cloudflare Access Service Token instead of enabling debug routes.
+
+1. Create a Service Token in Cloudflare Zero Trust:
+   - `Access -> Service Auth -> Service Tokens`
+2. Grant token access to this application.
+3. Store token locally in `.agent-access.local` (gitignored):
+
+```bash
+CF_ACCESS_CLIENT_ID=...
+CF_ACCESS_CLIENT_SECRET=...
+MOLTBOT_BASE_URL=https://moltbot.froguin.workers.dev
+```
+
+4. Load credentials before running diagnostics:
+
+```bash
+set -a
+source .agent-access.local
+set +a
+```
+
+5. Use Access headers for protected endpoints:
+
+```bash
+curl -sS -i "$MOLTBOT_BASE_URL/api/status" \
+  -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
+  -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET"
+```
+
+Security rules:
+- Never commit `.agent-access.local`.
+- Do not print token values in logs or PR comments.
+- Keep `DEBUG_ROUTES=false` in normal production operation.
+
 ## R2 Storage Notes
 
 R2 is mounted via s3fs at `/data/moltbot`. Important gotchas:
