@@ -4,6 +4,10 @@ import { MOLTBOT_PORT, STARTUP_TIMEOUT_MS } from '../config';
 import { buildEnvVars } from './env';
 import { mountR2Storage } from './r2';
 
+// Prevent concurrent requests from starting duplicate gateway processes.
+// This lock is process-local to the current Worker isolate.
+let gatewayStartupPromise: Promise<Process> | null = null;
+
 /**
  * Find an existing OpenClaw gateway process
  *
@@ -54,6 +58,20 @@ export async function findExistingMoltbotProcess(sandbox: Sandbox): Promise<Proc
  * @returns The running gateway process
  */
 export async function ensureMoltbotGateway(sandbox: Sandbox, env: MoltbotEnv): Promise<Process> {
+  if (gatewayStartupPromise) {
+    console.log('Gateway startup already in progress, waiting for existing attempt...');
+    return gatewayStartupPromise;
+  }
+
+  gatewayStartupPromise = ensureMoltbotGatewayInternal(sandbox, env);
+  try {
+    return await gatewayStartupPromise;
+  } finally {
+    gatewayStartupPromise = null;
+  }
+}
+
+async function ensureMoltbotGatewayInternal(sandbox: Sandbox, env: MoltbotEnv): Promise<Process> {
   // Mount R2 storage for persistent data (non-blocking if not configured)
   // R2 is used as a backup - the startup script will restore from it on boot
   await mountR2Storage(sandbox, env);
