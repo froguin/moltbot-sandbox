@@ -337,16 +337,12 @@ if (process.env.SLACK_BOT_TOKEN && process.env.SLACK_APP_TOKEN) {
     const allowFrom = process.env.SLACK_DM_ALLOW_FROM
         ? process.env.SLACK_DM_ALLOW_FROM.split(',').map((id) => id.trim()).filter(Boolean)
         : (dmPolicy === 'open' ? ['*'] : undefined);
-    const dm = {
-        enabled: true,
-        policy: dmPolicy,
-        ...(allowFrom ? { allowFrom } : {}),
-    };
     config.channels.slack = {
         botToken: process.env.SLACK_BOT_TOKEN,
         appToken: process.env.SLACK_APP_TOKEN,
         enabled: true,
-        dm: dm,
+        dmPolicy: dmPolicy,
+        ...(allowFrom ? { allowFrom } : {}),
     };
 }
 
