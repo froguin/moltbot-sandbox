@@ -10,6 +10,13 @@ import { findExistingMoltbotProcess } from '../gateway';
  * Includes: health checks, static assets, and public API endpoints.
  */
 const publicRoutes = new Hono<AppEnv>();
+type StatusPayload = {
+  ok: boolean;
+  status: 'running' | 'not_running' | 'not_responding' | 'error';
+  processId?: string;
+  error?: string;
+};
+let statusCache: { expiresAt: number; payload: StatusPayload } | null = null;
 
 // GET /sandbox-health - Health check endpoint
 publicRoutes.get('/sandbox-health', (c) => {
@@ -32,12 +39,18 @@ publicRoutes.get('/logo-small.png', (c) => {
 
 // GET /api/status - Public health check for gateway status (no auth required)
 publicRoutes.get('/api/status', async (c) => {
+  if (statusCache && statusCache.expiresAt > Date.now()) {
+    return c.json(statusCache.payload);
+  }
+
   const sandbox = c.get('sandbox');
 
   try {
     const process = await findExistingMoltbotProcess(sandbox);
     if (!process) {
-      return c.json({ ok: false, status: 'not_running' });
+      const payload: StatusPayload = { ok: false, status: 'not_running' };
+      statusCache = { payload, expiresAt: Date.now() + 1500 };
+      return c.json(payload);
     }
 
     // Keep this endpoint lightweight because the loading page polls frequently.
@@ -45,16 +58,22 @@ publicRoutes.get('/api/status', async (c) => {
     // to avoid false-ready loops when the process is unhealthy.
     try {
       await process.waitForPort(18789, { mode: 'tcp', timeout: 600 });
-      return c.json({ ok: true, status: 'running', processId: process.id });
+      const payload: StatusPayload = { ok: true, status: 'running', processId: process.id };
+      statusCache = { payload, expiresAt: Date.now() + 1500 };
+      return c.json(payload);
     } catch {
-      return c.json({ ok: false, status: 'not_responding', processId: process.id });
+      const payload: StatusPayload = { ok: false, status: 'not_responding', processId: process.id };
+      statusCache = { payload, expiresAt: Date.now() + 1500 };
+      return c.json(payload);
     }
   } catch (err) {
-    return c.json({
+    const payload: StatusPayload = {
       ok: false,
       status: 'error',
       error: err instanceof Error ? err.message : 'Unknown error',
-    });
+    };
+    statusCache = { payload, expiresAt: Date.now() + 1000 };
+    return c.json(payload);
   }
 });
 
