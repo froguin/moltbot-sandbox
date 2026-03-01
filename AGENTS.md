@@ -302,3 +302,4 @@ R2 is mounted via s3fs at `/data/moltbot`. Important gotchas:
 
 - **Automatic Browser Configuration**: Updated `start-openclaw.sh` to automatically configure the `cloudflare` browser profile when `WORKER_URL` and `CDP_SECRET` are present. This allows OpenClaw to use the built-in Browser Rendering CDP shim without manual `openclaw.json` modification.
 - **Improved Patch Logic**: The configuration patching now includes logic to set the default browser profile to `cloudflare`, enabling out-of-the-box support for web navigation skills.
+- **OpenClaw & Wrangler Update**: Updated `Dockerfile` to use **OpenClaw 2026.2.26** and installed **Wrangler** globally within the container. This addresses sandbox limitations where certain skills might need Cloudflare CLI tools for Workers management.
