@@ -350,6 +350,22 @@ if (process.env.SLACK_BOT_TOKEN && process.env.SLACK_APP_TOKEN) {
     };
 }
 
+// Browser Rendering configuration (CDP)
+// Automatically configure the 'cloudflare' browser profile if WORKER_URL and CDP_SECRET are set.
+// This allows OpenClaw to use the built-in CDP shim without manual configuration.
+if (process.env.WORKER_URL && process.env.CDP_SECRET) {
+    const workerUrl = process.env.WORKER_URL.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    const cdpUrl = `https://${workerUrl}/cdp?secret=${encodeURIComponent(process.env.CDP_SECRET)}`;
+    
+    config.browser = config.browser || {};
+    config.browser.profiles = config.browser.profiles || {};
+    config.browser.profiles.cloudflare = {
+        cdpUrl: cdpUrl
+    };
+    config.browser.defaultProfile = config.browser.defaultProfile || 'cloudflare';
+    console.log('Configured browser profile "cloudflare" with CDP URL (redacted secret)');
+}
+
 fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 console.log('Configuration patched successfully');
 EOFPATCH

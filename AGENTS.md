@@ -259,3 +259,10 @@ R2 is mounted via s3fs at `/data/moltbot`. Important gotchas:
 - **Process status**: The sandbox API's `proc.status` may not update immediately after a process completes. Instead of checking `proc.status === 'completed'`, verify success by checking for expected output (e.g., timestamp file exists after sync).
 
 - **R2 prefix migration**: Backups are now stored under `openclaw/` prefix in R2 (was `clawdbot/`). The startup script handles restoring from both old and new prefixes with automatic migration.
+
+---
+
+## Recent Changes (2026-03-01)
+
+- **Automatic Browser Configuration**: Updated `start-openclaw.sh` to automatically configure the `cloudflare` browser profile when `WORKER_URL` and `CDP_SECRET` are present. This allows OpenClaw to use the built-in Browser Rendering CDP shim without manual `openclaw.json` modification.
+- **Improved Patch Logic**: The configuration patching now includes logic to set the default browser profile to `cloudflare`, enabling out-of-the-box support for web navigation skills.

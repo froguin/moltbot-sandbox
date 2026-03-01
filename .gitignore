@@ -31,6 +31,9 @@ Thumbs.db
 .env.*
 !.env.example
 
+# Agent-only local access token file (Cloudflare Access service token)
+.agent-access.local
+
 # TypeScript
 *.tsbuildinfo
 
