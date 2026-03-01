@@ -296,6 +296,8 @@ R2 is mounted via s3fs at `/data/moltbot`. Important gotchas:
 
 - **R2 prefix migration**: Backups are now stored under `openclaw/` prefix in R2 (was `clawdbot/`). The startup script handles restoring from both old and new prefixes with automatic migration.
 
+- **Original Reference**: This project is based on [cloudflare/moltworker](https://github.com/cloudflare/moltworker).
+
 ---
 
 ## Recent Changes (2026-03-01)
@@ -303,3 +305,4 @@ R2 is mounted via s3fs at `/data/moltbot`. Important gotchas:
 - **Automatic Browser Configuration**: Updated `start-openclaw.sh` to automatically configure the `cloudflare` browser profile when `WORKER_URL` and `CDP_SECRET` are present. This allows OpenClaw to use the built-in Browser Rendering CDP shim without manual `openclaw.json` modification.
 - **Improved Patch Logic**: The configuration patching now includes logic to set the default browser profile to `cloudflare`, enabling out-of-the-box support for web navigation skills.
 - **OpenClaw & Wrangler Update**: Updated `Dockerfile` to use **OpenClaw 2026.2.26** and installed **Wrangler** globally within the container. This addresses sandbox limitations where certain skills might need Cloudflare CLI tools for Workers management.
+- **R2 Restore Optimization**: Updated `start-openclaw.sh` to use `rsync -r --no-times` instead of `rsync -a` when restoring from R2. This is critical for S3FS (R2 mount) stability, as it avoids "Input/output error" caused by attempting to set file timestamps.
